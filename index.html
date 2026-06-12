@@ -83,6 +83,29 @@
   .import-banner .yes{background:#fff;color:var(--accent)}
   .import-banner .no{background:rgba(255,255,255,.18);color:#fff}
 
+  /* データ書き出し/読み込み */
+  .data-tools{
+    text-align:center;padding:6px 16px 0;
+    max-width:520px;margin:0 auto;
+    color:var(--line);font-size:12px;
+  }
+  .data-tools button{
+    border:none;background:none;font-family:inherit;
+    font-size:12px;color:var(--sub);text-decoration:underline;
+    cursor:pointer;padding:8px 4px;
+  }
+
+  /* QR共有シート */
+  .qr-note{font-size:12.5px;color:var(--sub);line-height:1.7;margin-bottom:16px}
+  #qrBox{
+    display:flex;justify-content:center;padding:8px;
+    background:#fff;
+  }
+  #qrBox img,#qrBox canvas{
+    width:min(70vw,260px) !important;height:min(70vw,260px) !important;
+  }
+  .qr-error{font-size:13px;color:var(--danger);text-align:center;padding:20px 10px;line-height:1.7}
+
   main{padding:4px 16px 0;max-width:520px;margin:0 auto}
 
   /* ===== 診察券カード ===== */
@@ -234,7 +257,7 @@
 <header>
   <div class="header-row">
     <h1>診察券ホルダー</h1>
-    <button class="share-btn" onclick="share()">共有</button>
+    <button class="share-btn" onclick="share()">家族に渡す</button>
   </div>
   <p>タップで番号コピー → 予約ページを開く</p>
   <div class="filter-tabs" id="filterTabs">
@@ -245,6 +268,13 @@
 </header>
 
 <main id="list"></main>
+
+<div class="data-tools">
+  <button onclick="exportFile()">データを書き出す</button>
+  <span>｜</span>
+  <button onclick="document.getElementById('importFile').click()">データを読み込む</button>
+  <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importFile(this)">
+</div>
 
 <button class="fab" onclick="openForm()">＋ 病院を追加</button>
 
@@ -294,6 +324,18 @@
   </div>
 </div>
 
+<div class="overlay" id="qrOverlay" onclick="if(event.target===this)closeQr()">
+  <div class="sheet qr-sheet">
+    <h2>病院リストを家族に渡す</h2>
+    <p class="qr-note">相手のスマホカメラでこのQRを読み取ってもらってください。開いたページで「取り込む」をタップすれば、登録した病院リストがそのまま渡ります。</p>
+    <div id="qrBox"></div>
+    <div class="sheet-btns">
+      <button class="btn-cancel" onclick="copyShareUrl()">リンクをコピー</button>
+      <button class="btn-save" onclick="closeQr()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -312,7 +354,7 @@ function render(){
   let banner = '';
   if(pendingImport){
     banner = `<div class="import-banner">
-      <p>共有された病院リスト（${pendingImport.length}件）が届いています。取り込みますか？</p>
+      <p>家族から病院リスト（${pendingImport.length}件）が届いています。取り込みますか？</p>
       <div class="btns">
         <button class="yes" onclick="doImport()">取り込む</button>
         <button class="no" onclick="skipImport()">今はしない</button>
@@ -422,21 +464,54 @@ function setFilter(btn){
 
 /* ===== 共有（URLにデータを埋め込み） ===== */
 function encodeData(arr){
-  return btoa(unescape(encodeURIComponent(JSON.stringify(arr))));
+  // id と hours（hoursDataから再生成可能）を省いて圧縮
+  const slim = arr.map(({id, hours, ...rest}) => rest);
+  return btoa(unescape(encodeURIComponent(JSON.stringify(slim))));
 }
 function decodeData(s){
-  return JSON.parse(decodeURIComponent(escape(atob(s))));
+  const arr = JSON.parse(decodeURIComponent(escape(atob(s))));
+  return arr.map(d => ({ ...d, hours: d.hours || buildHoursText(d.hoursData) }));
+}
+function shareUrl(){
+  return location.origin + location.pathname + '#d=' + encodeData(items);
+}
+let qrLibLoading = null;
+function loadQrLib(){
+  if(window.QRCode) return Promise.resolve();
+  if(qrLibLoading) return qrLibLoading;
+  qrLibLoading = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  return qrLibLoading;
 }
 function share(){
   if(!items.length){ toast('登録がまだありません'); return; }
-  const url = location.origin + location.pathname + '#d=' + encodeData(items);
-  if(navigator.share){
-    navigator.share({ title: '診察券ホルダー', text: '病院リストを共有します', url })
-      .catch(()=>{});
-  } else {
-    copyText(url);
-    toast('共有リンクをコピーしました');
-  }
+  const box = document.getElementById('qrBox');
+  box.innerHTML = '';
+  document.getElementById('qrOverlay').classList.add('show');
+  loadQrLib().then(() => {
+    try{
+      new QRCode(box, {
+        text: shareUrl(),
+        width: 520, height: 520,
+        correctLevel: QRCode.CorrectLevel.L
+      });
+    }catch(e){
+      box.innerHTML = '<div class="qr-error">データ量が多くQRにできませんでした。<br>「リンクをコピー」からLINE等で送ってください。</div>';
+    }
+  }).catch(() => {
+    box.innerHTML = '<div class="qr-error">QRの生成に失敗しました（オフライン？）。<br>「リンクをコピー」からLINE等で送ってください。</div>';
+  });
+}
+function copyShareUrl(){
+  copyText(shareUrl());
+  toast('共有リンクをコピーしました');
+}
+function closeQr(){
+  document.getElementById('qrOverlay').classList.remove('show');
 }
 function checkImport(){
   const m = location.hash.match(/^#d=(.+)$/);
@@ -466,6 +541,42 @@ function doImport(){
 function skipImport(){
   pendingImport = null;
   render();
+}
+
+/* ===== ファイル書き出し / 読み込み ===== */
+function exportFile(){
+  if(!items.length){ toast('登録がまだありません'); return; }
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  const blob = new Blob([JSON.stringify(items, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `shinsatsuken_${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  toast('ファイルを書き出しました');
+}
+function importFile(input){
+  const file = input.files && input.files[0];
+  input.value = ''; // 同じファイルを再選択できるようリセット
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const data = JSON.parse(reader.result);
+      if(Array.isArray(data) && data.length && data.every(x => x.name && x.url && x.card)){
+        pendingImport = data;
+        render();
+      } else {
+        toast('このアプリのデータファイルではないようです');
+      }
+    }catch(e){
+      toast('ファイルを読み込めませんでした');
+    }
+  };
+  reader.readAsText(file);
 }
 
 function initChips(){
