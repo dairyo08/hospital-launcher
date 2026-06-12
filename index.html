@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>診察券ホルダー</title>
+<style>
+  :root{
+    --bg:#EDF1F2;
+    --ink:#1F3038;
+    --sub:#6B7E87;
+    --card:#FFFFFF;
+    --accent:#1E7F8C;       /* 深い青緑（医療×落ち着き） */
+    --accent-soft:#DFF0F2;
+    --line:#D8E0E3;
+    --danger:#C25450;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI",system-ui,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    min-height:100vh;
+    padding-bottom:90px;
+  }
+  header{
+    padding:max(env(safe-area-inset-top),12px) 20px 14px;
+    background:var(--bg);
+    position:sticky;top:0;z-index:5;
+  }
+  header h1{
+    font-size:17px;font-weight:700;letter-spacing:.06em;
+    display:flex;align-items:center;gap:8px;
+  }
+  header h1::before{
+    content:"";display:inline-block;width:18px;height:13px;
+    border:2px solid var(--accent);border-radius:3px;
+    background:linear-gradient(to bottom,transparent 55%,var(--accent) 55%);
+  }
+  header p{font-size:11.5px;color:var(--sub);margin-top:4px}
+  .header-row{display:flex;align-items:center;justify-content:space-between}
+  .share-btn{
+    border:1px solid var(--accent);background:#fff;color:var(--accent);
+    font-family:inherit;font-size:12px;font-weight:700;
+    border-radius:99px;padding:6px 14px;cursor:pointer;
+  }
+  .share-btn:active{background:var(--accent-soft)}
+
+  /* フィルタータブ */
+  .filter-tabs{display:flex;gap:8px;margin-top:12px}
+  .filter-tabs button{
+    border:1px solid var(--line);background:#fff;color:var(--sub);
+    font-family:inherit;font-size:13px;font-weight:600;
+    border-radius:99px;padding:8px 18px;cursor:pointer;
+  }
+  .filter-tabs button.on{
+    background:var(--accent);border-color:var(--accent);color:#fff;
+  }
+
+  /* 対象者選択チップ（フォーム内） */
+  .person-chips{display:flex;gap:8px}
+  .person-chips button{
+    border:1px solid var(--line);background:#FAFCFC;color:var(--sub);
+    font-family:inherit;font-size:14px;font-weight:600;
+    border-radius:10px;padding:11px 24px;cursor:pointer;
+  }
+  .person-chips button.on{
+    background:var(--accent);border-color:var(--accent);color:#fff;
+  }
+
+  /* 取り込みバナー */
+  .import-banner{
+    background:var(--accent);color:#fff;border-radius:var(--radius);
+    padding:16px;margin-bottom:14px;
+  }
+  .import-banner p{font-size:13px;font-weight:600;line-height:1.6;margin-bottom:12px}
+  .import-banner .btns{display:flex;gap:8px}
+  .import-banner button{
+    flex:1;border:none;border-radius:9px;padding:10px 0;
+    font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;
+  }
+  .import-banner .yes{background:#fff;color:var(--accent)}
+  .import-banner .no{background:rgba(255,255,255,.18);color:#fff}
+
+  main{padding:4px 16px 0;max-width:520px;margin:0 auto}
+
+  /* ===== 診察券カード ===== */
+  .ticket{
+    background:var(--card);
+    border-radius:var(--radius);
+    border:1px solid var(--line);
+    box-shadow:0 1px 3px rgba(31,48,56,.07);
+    margin-bottom:14px;
+    overflow:hidden;
+    position:relative;
+  }
+  .ticket-main{
+    display:block;width:100%;text-align:left;border:none;background:none;
+    font-family:inherit;color:inherit;cursor:pointer;
+    padding:16px 16px 14px;
+  }
+  .ticket-main:active{background:var(--accent-soft)}
+  .ticket-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .hname{font-size:16.5px;font-weight:700;line-height:1.35}
+  .person{
+    flex-shrink:0;font-size:11px;font-weight:600;color:var(--accent);
+    background:var(--accent-soft);border-radius:99px;padding:3px 10px;margin-top:1px;
+  }
+  .cardno-label{
+    font-size:10px;color:var(--sub);letter-spacing:.18em;margin-top:12px;
+  }
+  .cardno{
+    font-family:"SF Mono",ui-monospace,Menlo,monospace;
+    font-size:21px;font-weight:600;letter-spacing:.14em;
+    color:var(--ink);margin-top:2px;
+  }
+  .ticket-hint{
+    display:flex;align-items:center;gap:6px;
+    margin-top:10px;font-size:11.5px;color:var(--accent);font-weight:600;
+  }
+  .ticket-hint svg{width:13px;height:13px}
+  .memo{font-size:11.5px;color:var(--sub);margin-top:8px;line-height:1.5}
+  .hours{
+    display:flex;align-items:center;gap:5px;
+    font-size:12px;color:var(--sub);margin-top:8px;font-weight:500;
+  }
+  .hours svg{width:13px;height:13px;flex-shrink:0;color:var(--accent)}
+
+  /* 営業時間入力UI */
+  .hours-row{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+  .hours-tag{
+    font-size:11px;font-weight:700;color:var(--accent);
+    background:var(--accent-soft);border-radius:6px;padding:4px 8px;flex-shrink:0;
+  }
+  .hours-row input[type="time"]{
+    flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;
+    padding:9px 8px;font-size:16px;font-family:inherit;background:#FAFCFC;
+  }
+  .hours-row input[type="time"]:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .tilde{color:var(--sub);font-size:13px;flex-shrink:0}
+  .closed-label{font-size:11px;color:var(--sub);margin:10px 0 6px}
+  .day-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .day-chips button{
+    border:1px solid var(--line);background:#FAFCFC;border-radius:99px;
+    font-family:inherit;font-size:13px;font-weight:600;color:var(--sub);
+    width:38px;height:38px;cursor:pointer;
+  }
+  .day-chips button.on{
+    background:var(--danger);border-color:var(--danger);color:#fff;
+  }
+
+  .ticket-actions{
+    display:flex;border-top:1px dashed var(--line);
+  }
+  .ticket-actions button{
+    flex:1;border:none;background:none;font-family:inherit;
+    font-size:12px;color:var(--sub);padding:9px 0;cursor:pointer;
+  }
+  .ticket-actions button:active{background:var(--accent-soft)}
+  .ticket-actions button.del{color:var(--danger)}
+  .ticket-actions button + button{border-left:1px dashed var(--line)}
+
+  /* パンチ穴風（診察券ホルダーの遊び） */
+  .ticket::before,.ticket::after{
+    content:"";position:absolute;top:50%;width:14px;height:14px;
+    background:var(--bg);border:1px solid var(--line);border-radius:50%;
+    transform:translateY(-50%);
+  }
+  .ticket::before{left:-8px}
+  .ticket::after{right:-8px}
+
+  /* ===== 空状態 ===== */
+  .empty{
+    text-align:center;padding:60px 24px;color:var(--sub);
+  }
+  .empty .big{font-size:40px;margin-bottom:12px}
+  .empty p{font-size:13.5px;line-height:1.8}
+
+  /* ===== 追加ボタン ===== */
+  .fab{
+    position:fixed;bottom:max(env(safe-area-inset-bottom),16px);left:50%;
+    transform:translateX(-50%);
+    background:var(--accent);color:#fff;border:none;border-radius:99px;
+    font-family:inherit;font-size:14.5px;font-weight:700;letter-spacing:.05em;
+    padding:14px 30px;cursor:pointer;
+    box-shadow:0 4px 14px rgba(30,127,140,.35);
+    z-index:5;
+  }
+  .fab:active{transform:translateX(-50%) scale(.97)}
+
+  /* ===== フォーム（モーダル） ===== */
+  .overlay{
+    position:fixed;inset:0;background:rgba(31,48,56,.45);
+    display:none;align-items:flex-end;justify-content:center;z-index:10;
+  }
+  .overlay.show{display:flex}
+  .sheet{
+    background:var(--card);width:100%;max-width:520px;
+    border-radius:18px 18px 0 0;
+    padding:20px 20px max(env(safe-area-inset-bottom),20px);
+    animation:up .2s ease;
+  }
+  @keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
+  .sheet h2{font-size:15.5px;font-weight:700;margin-bottom:16px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11.5px;font-weight:600;color:var(--sub);margin-bottom:5px}
+  .field input{
+    width:100%;border:1px solid var(--line);border-radius:10px;
+    padding:11px 12px;font-size:16px;font-family:inherit;background:#FAFCFC;
+  }
+  .field input:focus{outline:2px solid var(--accent);outline-offset:-1px;background:#fff}
+  .sheet-btns{display:flex;gap:10px;margin-top:18px}
+  .sheet-btns button{
+    flex:1;border-radius:11px;padding:13px 0;font-size:14.5px;font-weight:700;
+    font-family:inherit;cursor:pointer;border:none;
+  }
+  .btn-cancel{background:var(--bg);color:var(--sub)}
+  .btn-save{background:var(--accent);color:#fff}
+
+  /* ===== トースト ===== */
+  .toast{
+    position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(10px);
+    background:var(--ink);color:#fff;font-size:13px;font-weight:600;
+    padding:11px 20px;border-radius:99px;opacity:0;pointer-events:none;
+    transition:opacity .2s,transform .2s;z-index:20;white-space:nowrap;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <h1>診察券ホルダー</h1>
+    <button class="share-btn" onclick="share()">共有</button>
+  </div>
+  <p>タップで番号コピー → 予約ページを開く</p>
+  <div class="filter-tabs" id="filterTabs">
+    <button data-f="" class="on" onclick="setFilter(this)">すべて</button>
+    <button data-f="本人" onclick="setFilter(this)">本人</button>
+    <button data-f="子" onclick="setFilter(this)">子</button>
+  </div>
+</header>
+
+<main id="list"></main>
+
+<button class="fab" onclick="openForm()">＋ 病院を追加</button>
+
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeForm()">
+  <div class="sheet">
+    <h2 id="formTitle">病院を追加</h2>
+    <div class="field">
+      <label>病院名 *</label>
+      <input id="fName" placeholder="例：〇〇こどもクリニック" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>予約URL *</label>
+      <input id="fUrl" placeholder="https://..." inputmode="url" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>診察券番号 *</label>
+      <input id="fCard" placeholder="例：12345" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>対象者</label>
+      <div class="person-chips" id="personChips">
+        <button type="button" data-p="本人" onclick="pickPerson(this)">本人</button>
+        <button type="button" data-p="子" onclick="pickPerson(this)">子</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>営業時間（任意）</label>
+      <div class="hours-row">
+        <span class="hours-tag">午前</span>
+        <input type="time" id="fAmS"><span class="tilde">〜</span><input type="time" id="fAmE">
+      </div>
+      <div class="hours-row">
+        <span class="hours-tag">午後</span>
+        <input type="time" id="fPmS"><span class="tilde">〜</span><input type="time" id="fPmE">
+      </div>
+      <div class="closed-label">休診日（タップで選択）</div>
+      <div class="day-chips" id="dayChips"></div>
+    </div>
+    <div class="field">
+      <label>メモ（任意）</label>
+      <input id="fMemo" placeholder="例：受付は8:30から / 木曜休診" autocomplete="off">
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-cancel" onclick="closeForm()">キャンセル</button>
+      <button class="btn-save" onclick="save()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY = 'hospitalTickets_v1';
+let items = [];
+let editId = null;
+
+try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch(e) { items = []; }
+
+function persist(){ localStorage.setItem(KEY, JSON.stringify(items)); }
+
+function esc(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function render(){
+  const list = document.getElementById('list');
+  let banner = '';
+  if(pendingImport){
+    banner = `<div class="import-banner">
+      <p>共有された病院リスト（${pendingImport.length}件）が届いています。取り込みますか？</p>
+      <div class="btns">
+        <button class="yes" onclick="doImport()">取り込む</button>
+        <button class="no" onclick="skipImport()">今はしない</button>
+      </div>
+    </div>`;
+  }
+  const shown = filter ? items.filter(it => (it.person||'') === filter) : items;
+  if(!shown.length){
+    const msg = items.length
+      ? `「${filter}」の登録はありません。`
+      : 'まだ登録がありません。<br>「＋ 病院を追加」から<br>よく使う病院を登録しましょう。';
+    list.innerHTML = banner + `<div class="empty">
+      <div class="big">🏥</div>
+      <p>${msg}</p>
+    </div>`;
+    return;
+  }
+  list.innerHTML = banner + shown.map(it => `
+    <div class="ticket">
+      <button class="ticket-main" onclick="go('${it.id}')">
+        <div class="ticket-top">
+          <div class="hname">${esc(it.name)}</div>
+          ${it.person ? `<div class="person">${esc(it.person)}</div>` : ''}
+        </div>
+        <div class="cardno-label">診察券番号</div>
+        <div class="cardno">${esc(it.card)}</div>
+        ${it.hours ? `<div class="hours"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.5V8l2.3 1.6"/></svg>${esc(it.hours)}</div>` : ''}
+        ${it.memo ? `<div class="memo">${esc(it.memo)}</div>` : ''}
+        <div class="ticket-hint">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="5" width="9" height="9" rx="2"/><path d="M11 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1"/></svg>
+          番号をコピーして予約ページへ
+        </div>
+      </button>
+      <div class="ticket-actions">
+        <button onclick="copyOnly('${it.id}')">番号だけコピー</button>
+        <button onclick="openForm('${it.id}')">編集</button>
+        <button class="del" onclick="remove('${it.id}', this)">削除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function copyText(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).catch(()=>fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+}
+
+function go(id){
+  const it = items.find(x => x.id === id);
+  if(!it) return;
+  copyText(it.card);
+  toast(`診察券番号「${it.card}」をコピーしました`);
+  // コピー直後に予約ページを開く（同一ジェスチャー内）
+  setTimeout(() => { window.open(it.url, '_blank'); }, 350);
+}
+
+function copyOnly(id){
+  const it = items.find(x => x.id === id);
+  if(!it) return;
+  copyText(it.card);
+  toast(`「${it.card}」をコピーしました`);
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+const DAYS = ['月','火','水','木','金','土','日','祝'];
+let closedDays = [];
+let pendingImport = null;
+let selectedPerson = '';
+let filter = '';
+try { filter = localStorage.getItem(KEY + '_filter') || ''; } catch(e) {}
+
+function pickPerson(btn){
+  const p = btn.dataset.p;
+  selectedPerson = (selectedPerson === p) ? '' : p; // 同じのをタップで解除
+  document.querySelectorAll('#personChips button').forEach(b => {
+    b.classList.toggle('on', b.dataset.p === selectedPerson);
+  });
+}
+
+function setFilter(btn){
+  filter = btn.dataset.f;
+  try { localStorage.setItem(KEY + '_filter', filter); } catch(e) {}
+  document.querySelectorAll('#filterTabs button').forEach(b => {
+    b.classList.toggle('on', b.dataset.f === filter);
+  });
+  render();
+}
+
+/* ===== 共有（URLにデータを埋め込み） ===== */
+function encodeData(arr){
+  return btoa(unescape(encodeURIComponent(JSON.stringify(arr))));
+}
+function decodeData(s){
+  return JSON.parse(decodeURIComponent(escape(atob(s))));
+}
+function share(){
+  if(!items.length){ toast('登録がまだありません'); return; }
+  const url = location.origin + location.pathname + '#d=' + encodeData(items);
+  if(navigator.share){
+    navigator.share({ title: '診察券ホルダー', text: '病院リストを共有します', url })
+      .catch(()=>{});
+  } else {
+    copyText(url);
+    toast('共有リンクをコピーしました');
+  }
+}
+function checkImport(){
+  const m = location.hash.match(/^#d=(.+)$/);
+  if(!m) return;
+  try{
+    const data = decodeData(m[1]);
+    if(Array.isArray(data) && data.length){
+      pendingImport = data;
+    }
+  }catch(e){ /* 壊れたリンクは無視 */ }
+  history.replaceState(null, '', location.pathname);
+}
+function doImport(){
+  if(!pendingImport) return;
+  let added = 0;
+  for(const d of pendingImport){
+    const dup = items.some(x => x.name === d.name && x.card === d.card && (x.person||'') === (d.person||''));
+    if(!dup){
+      items.push({ ...d, id: Date.now().toString(36) + Math.random().toString(36).slice(2,5) });
+      added++;
+    }
+  }
+  pendingImport = null;
+  persist(); render();
+  toast(added ? `${added}件を取り込みました` : 'すべて登録済みでした');
+}
+function skipImport(){
+  pendingImport = null;
+  render();
+}
+
+function initChips(){
+  const wrap = document.getElementById('dayChips');
+  wrap.innerHTML = DAYS.map(d => `<button type="button" data-day="${d}" onclick="toggleDay(this)">${d}</button>`).join('');
+}
+function toggleDay(btn){
+  const d = btn.dataset.day;
+  if(closedDays.includes(d)){
+    closedDays = closedDays.filter(x => x !== d);
+    btn.classList.remove('on');
+  } else {
+    closedDays.push(d);
+    btn.classList.add('on');
+  }
+}
+function fmtTime(t){ // "09:00" → "9:00"
+  if(!t) return '';
+  return t.replace(/^0(\d)/, '$1');
+}
+function buildHoursText(h){
+  if(!h) return '';
+  const parts = [];
+  if(h.amS && h.amE) parts.push(`${fmtTime(h.amS)}〜${fmtTime(h.amE)}`);
+  if(h.pmS && h.pmE) parts.push(`${fmtTime(h.pmS)}〜${fmtTime(h.pmE)}`);
+  let s = parts.join(' / ');
+  if(h.closed && h.closed.length){
+    const c = DAYS.filter(d => h.closed.includes(d)).join('・');
+    s += (s ? '　' : '') + `休診：${c}`;
+  }
+  return s;
+}
+
+function openForm(id){
+  editId = id || null;
+  document.getElementById('formTitle').textContent = editId ? '病院を編集' : '病院を追加';
+  const it = editId ? items.find(x => x.id === editId) : null;
+  document.getElementById('fName').value   = it ? it.name   : '';
+  document.getElementById('fUrl').value    = it ? it.url    : '';
+  document.getElementById('fCard').value   = it ? it.card   : '';
+  const rawP = it ? (it.person||'') : '';
+  selectedPerson = (rawP === '本人' || rawP === '子') ? rawP
+                 : rawP ? '子' : ''; // 旧データ（娘 等）は「子」扱い
+  document.querySelectorAll('#personChips button').forEach(b => {
+    b.classList.toggle('on', b.dataset.p === selectedPerson);
+  });
+  const h = it && it.hoursData ? it.hoursData : {};
+  document.getElementById('fAmS').value = h.amS || '';
+  document.getElementById('fAmE').value = h.amE || '';
+  document.getElementById('fPmS').value = h.pmS || '';
+  document.getElementById('fPmE').value = h.pmE || '';
+  closedDays = h.closed ? [...h.closed] : [];
+  document.querySelectorAll('#dayChips button').forEach(b => {
+    b.classList.toggle('on', closedDays.includes(b.dataset.day));
+  });
+  document.getElementById('fMemo').value   = it ? (it.memo||'')   : '';
+  document.getElementById('overlay').classList.add('show');
+}
+
+function closeForm(){
+  document.getElementById('overlay').classList.remove('show');
+  editId = null;
+}
+
+function save(){
+  const name = document.getElementById('fName').value.trim();
+  let url    = document.getElementById('fUrl').value.trim();
+  const card = document.getElementById('fCard').value.trim();
+  const person = selectedPerson;
+  const hoursData = {
+    amS: document.getElementById('fAmS').value,
+    amE: document.getElementById('fAmE').value,
+    pmS: document.getElementById('fPmS').value,
+    pmE: document.getElementById('fPmE').value,
+    closed: [...closedDays]
+  };
+  const hours = buildHoursText(hoursData);
+  const memo   = document.getElementById('fMemo').value.trim();
+  if(!name || !url || !card){ toast('病院名・URL・診察券番号は必須です'); return; }
+  if(!/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+  if(editId){
+    const it = items.find(x => x.id === editId);
+    Object.assign(it, {name, url, card, person, hours, hoursData, memo});
+  } else {
+    items.push({ id: Date.now().toString(36), name, url, card, person, hours, hoursData, memo });
+  }
+  persist(); render(); closeForm();
+}
+
+let pendingDelete = null;
+function remove(id, btn){
+  if(pendingDelete === id){
+    // 2回目のタップ → 削除実行
+    pendingDelete = null;
+    items = items.filter(x => x.id !== id);
+    persist(); render();
+    toast('削除しました');
+  } else {
+    // 1回目のタップ → 確認状態に
+    pendingDelete = id;
+    btn.textContent = '本当に削除？';
+    btn.style.fontWeight = '700';
+    setTimeout(() => {
+      if(pendingDelete === id){
+        pendingDelete = null;
+        btn.textContent = '削除';
+        btn.style.fontWeight = '';
+      }
+    }, 3000);
+  }
+}
+
+initChips();
+document.querySelectorAll('#filterTabs button').forEach(b => {
+  b.classList.toggle('on', b.dataset.f === filter);
+});
+checkImport();
+render();
+</script>
+</body>
+</html>
